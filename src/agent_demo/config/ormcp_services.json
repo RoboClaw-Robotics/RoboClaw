@@ -33,7 +33,7 @@
         "server.py"
       ],
       "env": {
-        "TAVILY_API_KEY": "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",
+        "TAVILY_API_KEY": "${TAVILY_API_KEY}",
         "PYTHONIOENCODING": "utf-8"
       },
       "url": ""
