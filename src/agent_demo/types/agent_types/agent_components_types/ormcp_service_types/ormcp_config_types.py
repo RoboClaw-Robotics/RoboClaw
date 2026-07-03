@@ -1,12 +1,17 @@
+import os
+import re
+
 from pydantic import BaseModel, Field
 from typing import Optional
 from typing_extensions import Literal
 from agent_demo.common.json_loader import JSONLoader
+from agent_demo.common.project_env import load_project_dotenv
 from mcp import StdioServerParameters
 from rich.table import Table
 import logging
 
 logger = logging.getLogger(__name__)
+ENV_PLACEHOLDER_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
 
 
 class ORMCPServiceConfig(BaseModel):
@@ -74,5 +79,26 @@ class ORMCPServiceConfig(BaseModel):
 
         return config_dict
 
+    def resolved_env(self) -> Optional[dict[str, str]]:
+        if not self.env:
+            return None
+
+        load_project_dotenv()
+        resolved_env: dict[str, str] = {}
+        for key, value in self.env.items():
+            match = ENV_PLACEHOLDER_PATTERN.fullmatch(value)
+            if match is None:
+                resolved_env[key] = value
+                continue
+
+            env_name = match.group(1)
+            env_value = os.getenv(env_name, "")
+            if env_value:
+                resolved_env[key] = env_value
+            else:
+                logger.warning("Environment variable %s is not set; skipping %s.", env_name, key)
+
+        return resolved_env or None
+
     def to_stdio_service_parameters(self) -> StdioServerParameters:
-        return StdioServerParameters(command=self.command, args=self.args, env=self.env, cwd=self.cwd)
+        return StdioServerParameters(command=self.command, args=self.args, env=self.resolved_env(), cwd=self.cwd)
